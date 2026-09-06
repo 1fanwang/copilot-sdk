@@ -5315,6 +5315,20 @@ pub fn ensure_attachment_display_names(attachments: &mut [Attachment]) {
     }
 }
 
+/// Provenance of a message sent through `session.send`.
+///
+/// Source is independent of delivery mode. Leaving [`MessageOptions::source`]
+/// unset omits the field and preserves the runtime's default for user messages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+#[non_exhaustive]
+pub enum MessageSource {
+    /// A message from a human user.
+    User,
+    /// An automated message from the integrating application.
+    System,
+}
+
 /// Message delivery mode for [`MessageOptions::mode`].
 ///
 /// Controls how a prompt is delivered relative to in-flight session work.
@@ -5380,6 +5394,9 @@ pub enum AgentMode {
 pub struct MessageOptions {
     /// The user prompt to send.
     pub prompt: String,
+    /// Optional message provenance. When `None`, the field is omitted,
+    /// preserving the runtime's default for user messages.
+    pub source: Option<MessageSource>,
     /// Optional message delivery mode for this turn.
     ///
     /// Controls whether the prompt is queued behind in-flight work
@@ -5419,6 +5436,7 @@ impl MessageOptions {
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
+            source: None,
             mode: None,
             agent_mode: None,
             attachments: None,
@@ -5428,6 +5446,12 @@ impl MessageOptions {
             tracestate: None,
             display_prompt: None,
         }
+    }
+
+    /// Set the message provenance without changing its delivery mode.
+    pub fn with_source(mut self, source: MessageSource) -> Self {
+        self.source = Some(source);
+        self
     }
 
     /// Set the message delivery mode for this turn.
