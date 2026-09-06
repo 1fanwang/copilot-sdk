@@ -6,6 +6,7 @@ package com.github.copilot;
 
 import static org.junit.jupiter.api.Assertions.*;
 
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -24,6 +25,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.junit.jupiter.params.provider.NullSource;
+import org.junit.jupiter.params.provider.ValueSource;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -41,6 +43,15 @@ import com.github.copilot.rpc.SessionConfig;
 class MessageSourceTest {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    @ParameterizedTest
+    @ValueSource(strings = {"invalid", "2147483648", "-1"})
+    void malformedContentLengthFailsWithIOException(String value) {
+        var input = new ByteArrayInputStream(
+                ("Content-Length: " + value + "\r\n\r\n").getBytes(StandardCharsets.US_ASCII));
+        var error = assertThrows(IOException.class, () -> SendServer.readMessage(input));
+        assertTrue(error.getMessage().startsWith("Invalid Content-Length"));
+    }
 
     @ParameterizedTest
     @CsvSource({"USER,user", "SYSTEM,system"})
@@ -286,7 +297,15 @@ class MessageSourceTest {
                 }
                 header.append((char) b);
             }
-            int length = Integer.parseInt(header.substring(header.indexOf(":") + 1).trim());
+            int length;
+            try {
+                length = Integer.parseInt(header.substring(header.indexOf(":") + 1).trim());
+            } catch (NumberFormatException ex) {
+                throw new IOException("Invalid Content-Length", ex);
+            }
+            if (length < 0) {
+                throw new IOException("Invalid Content-Length: " + length);
+            }
             return MAPPER.readTree(input.readNBytes(length));
         }
 
