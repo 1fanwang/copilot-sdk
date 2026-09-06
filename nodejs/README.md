@@ -267,10 +267,19 @@ Send a message to the session. Returns immediately after the message is queued; 
 **Options:**
 
 - `prompt: string` - The message/prompt to send
+- `source?: MessageSource` - `"user"` or `"system"` provenance; omitted by default
 - `attachments?: Array<{type, path, displayName}>` - File attachments
 - `mode?: "enqueue" | "immediate"` - Delivery mode
 
 Returns the message ID.
+
+Use `source: "system"` for automated messages from your application:
+
+```typescript
+await session.send({ prompt: "Context updated", source: "system" });
+```
+
+Source is independent of delivery mode. Leaving it unset preserves the existing human-message payload; it does not set billing flags or use the notification API.
 
 ##### `sendAndWait(options: MessageOptions, timeout?: number): Promise<AssistantMessageEvent | undefined>`
 
@@ -279,6 +288,7 @@ Send a message and wait until the session becomes idle.
 **Options:**
 
 - `prompt: string` - The message/prompt to send
+- `source?: MessageSource` - Same optional provenance as `send`
 - `attachments?: Array<{type, path, displayName}>` - File attachments
 - `mode?: "enqueue" | "immediate"` - Delivery mode
 - `timeout?: number` - Optional timeout in milliseconds

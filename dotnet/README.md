@@ -250,8 +250,22 @@ Send a message to the session.
 - `Prompt` - The message/prompt to send
 - `Attachments` - File attachments
 - `Mode` - Delivery mode ("enqueue" or "immediate")
+- `Source` - Optional message origin: `MessageSource.User` or `MessageSource.System`. Omitted by default, preserving the runtime's default user behavior.
 
 Returns the message ID.
+
+Use `MessageSource.System` for application-generated context. This marks the
+message's origin; it does not replace the session's system prompt or change
+delivery mode. `SendAndWaitAsync` accepts the same option and still waits for
+session idle, returning null if no assistant message was received.
+
+```csharp
+await session.SendAsync(new MessageOptions
+{
+    Prompt = "The background build completed successfully.",
+    Source = MessageSource.System,
+});
+```
 
 ##### `On(Action<SessionEvent> handler): IDisposable`
 

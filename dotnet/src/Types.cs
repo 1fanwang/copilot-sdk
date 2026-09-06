@@ -2134,6 +2134,20 @@ public enum AgentMode
 }
 
 /// <summary>
+/// Identifies the origin of a message sent to a session.
+/// </summary>
+[JsonConverter(typeof(JsonStringEnumConverter<MessageSource>))]
+public enum MessageSource
+{
+    /// <summary>The message originates from user input.</summary>
+    [JsonStringEnumMemberName("user")]
+    User,
+    /// <summary>The message provides application-generated context.</summary>
+    [JsonStringEnumMemberName("system")]
+    System
+}
+
+/// <summary>
 /// Specifies the operation to perform on a system message section.
 /// </summary>
 [JsonConverter(typeof(JsonStringEnumConverter<SectionOverrideAction>))]
@@ -4029,6 +4043,7 @@ public sealed class MessageOptions
         Attachments = other.Attachments is not null ? [.. other.Attachments] : null;
         Mode = other.Mode;
         AgentMode = other.AgentMode;
+        Source = other.Source;
         Prompt = other.Prompt;
         DisplayPrompt = other.DisplayPrompt;
         RequestHeaders = other.RequestHeaders is not null
@@ -4054,6 +4069,11 @@ public sealed class MessageOptions
     /// Defaults to the session's current mode when unset.
     /// </summary>
     public AgentMode? AgentMode { get; set; }
+    /// <summary>
+    /// The message's origin. When unset, the field is omitted and the runtime defaults to user input.
+    /// This tags message provenance; it does not replace the session's system prompt or change delivery mode.
+    /// </summary>
+    public MessageSource? Source { get; set; }
     /// <summary>
     /// Custom per-turn HTTP headers for outbound model requests.
     /// </summary>

@@ -276,6 +276,9 @@ class BlobAttachment(TypedDict):
 
 Attachment = FileAttachment | DirectoryAttachment | SelectionAttachment | BlobAttachment
 
+MessageSource = Literal["user", "system"]
+"""Message provenance, independent of delivery mode."""
+
 # ============================================================================
 # System Message Configuration
 # ============================================================================
@@ -1711,6 +1714,7 @@ class CopilotSession:
         prompt: str,
         *,
         attachments: list[Attachment] | None = None,
+        source: MessageSource | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
@@ -1726,6 +1730,8 @@ class CopilotSession:
         Args:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
+            source: Optional message provenance (``"user"`` or ``"system"``).
+                Omitted when None, preserving the runtime's default for user messages.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
                 (for example ``"plan"`` or ``"autopilot"``). Defaults to the
@@ -1752,6 +1758,8 @@ class CopilotSession:
         }
         if attachments is not None:
             params["attachments"] = attachments
+        if source is not None:
+            params["source"] = source
         if mode is not None:
             params["mode"] = mode
         if agent_mode is not None:
@@ -1780,6 +1788,7 @@ class CopilotSession:
         prompt: str,
         *,
         attachments: list[Attachment] | None = None,
+        source: MessageSource | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
         request_headers: dict[str, str] | None = None,
@@ -1798,6 +1807,8 @@ class CopilotSession:
         Args:
             prompt: The message text to send.
             attachments: Optional file, directory, or selection attachments.
+            source: Optional message provenance (``"user"`` or ``"system"``),
+                independent of delivery mode. Omitted when None.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
                 (for example ``"plan"`` or ``"autopilot"``). Defaults to the
@@ -1861,6 +1872,7 @@ class CopilotSession:
             await self.send(
                 prompt,
                 attachments=attachments,
+                source=source,
                 mode=mode,
                 agent_mode=agent_mode,
                 request_headers=request_headers,

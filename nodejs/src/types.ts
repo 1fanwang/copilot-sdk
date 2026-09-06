@@ -3317,11 +3317,22 @@ export interface ProviderModelConfig {
      */
     capabilities?: ModelCapabilitiesOverride;
 }
+/**
+ * Message provenance, independent of delivery mode.
+ */
+export type MessageSource = "user" | "system";
+
 export interface MessageOptions {
     /**
      * The prompt/message to send
      */
     prompt: string;
+
+    /**
+     * Optional message provenance. Omitted by default to preserve the runtime's
+     * default for user messages. Use "system" for automated application messages.
+     */
+    source?: MessageSource;
 
     /**
      * File, directory, selection, or blob attachments

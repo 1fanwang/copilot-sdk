@@ -278,6 +278,24 @@ Initial acquisition runs during session creation or resume. Cancellation, provid
 - `UI() *SessionUI` - Interactive UI API for elicitation dialogs
 - `Capabilities() SessionCapabilities` - Host capabilities (e.g. elicitation support)
 
+#### Message source
+
+Set `MessageOptions.Source` to `copilot.MessageSourceUser` or
+`copilot.MessageSourceSystem` to identify the message's origin. Leave it empty to
+omit `source` from the request and preserve the runtime's default behavior.
+
+```go
+_, err := session.Send(ctx, copilot.MessageOptions{
+    Prompt: "Background check completed. The build passed.",
+    Source: copilot.MessageSourceSystem,
+    Mode:   "enqueue",
+})
+```
+
+Source is independent of delivery `Mode` and `AgentMode`; it does not replace the
+session's `SystemMessage` configuration. `SendAndWait` accepts the same options
+and still waits for session idle, returning `nil` if no assistant message arrives.
+
 ### Helper Functions
 
 - `Bool(v bool) *bool` - Helper to create bool pointers (e.g. for `Streaming`)
