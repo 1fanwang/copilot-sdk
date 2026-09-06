@@ -211,6 +211,8 @@ pub mod rpc_methods {
     pub const SESSION_SENDMESSAGES: &str = "session.sendMessages";
     /// `session.sandbox.getEnforcementStatus`
     pub const SESSION_SANDBOX_GETENFORCEMENTSTATUS: &str = "session.sandbox.getEnforcementStatus";
+    /// `session.sandbox.disableForSession`
+    pub const SESSION_SANDBOX_DISABLEFORSESSION: &str = "session.sandbox.disableForSession";
     /// `session.sendSystemNotification`
     pub const SESSION_SENDSYSTEMNOTIFICATION: &str = "session.sendSystemNotification";
     /// `session.abort`
@@ -1574,6 +1576,9 @@ pub struct AgentDiscoveryPathList {
 pub struct AgentInfo {
     /// Description of the agent's purpose
     pub description: String,
+    /// Whether model-driven invocation is disabled for this agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
     /// Human-readable display name
     pub display_name: String,
     /// Stable identifier for selection. For most agents this is the same as `name`; for plugin/builtin agents it may differ. Always populated; defaults to `name` when no distinct id was assigned.
@@ -3115,7 +3120,7 @@ pub struct CanvasProviderUnregisterRequest {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct CapiSessionOptions {
-    /// Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used.
+    /// Routing preference for sessions whose model is `auto`. On create or cold resume, this establishes the preference sent as `tier` on CAPI `/auto` requests; when omitted on cold resume, the runtime restores the last committed preference. On resident resume, a different value requests a safe switch after resume succeeds and cannot change an in-flight turn. Successful switches are persisted for later cold resume. When no preference is supplied or restored, CAPI default routing is used. `fast` is an integrator-only latency preset, not a first-party GitHub Copilot product preference.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub auto_tier: Option<AutoTier>,
     /// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses transport in environments where WebSockets are blocked (e.g. behind a proxy). Setting this to `false` is equivalent to the `COPILOT_CLI_DISABLE_WEBSOCKET_RESPONSES` environment variable.
@@ -5166,10 +5171,10 @@ pub struct FactoryAckResult {}
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct FactoryAgentOptions {
-    /// Optional custom agent name for the subagent. This field is accepted but not yet honored.
+    /// Optional built-in or custom agent name whose definition configures the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
-    /// Optional context tier for the subagent. This field is accepted but not yet honored.
+    /// Optional context tier override for the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub context_tier: Option<ContextTier>,
     /// Optional label distinguishing otherwise identical memoized agent calls.
@@ -5178,7 +5183,7 @@ pub struct FactoryAgentOptions {
     /// Optional model identifier for the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub model: Option<String>,
-    /// Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+    /// Optional reasoning effort override for the subagent.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reasoning_effort: Option<String>,
     /// Optional JSON Schema for structured agent output.
@@ -15073,6 +15078,41 @@ pub struct SandboxConfig {
     pub user_policy: Option<SandboxConfigUserPolicy>,
 }
 
+/// Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxDisableForSessionRequest {
+    /// Optional attribution for the permission decision.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub decision_context: Option<PermissionDecisionContext>,
+    /// Identifier of the exact pending sandbox-bypass permission request that authorized the session opt-out.
+    pub request_id: RequestId,
+}
+
+/// Result of attempting to disable sandboxing for the current session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SandboxDisableForSessionResult {
+    /// The authoritative sandbox enabled state after the operation.
+    pub enabled: bool,
+    /// Whether this call resolved the pending request and applied the session opt-out.
+    pub success: bool,
+}
+
 /// Managed sandbox enforcement state for a session.
 ///
 /// <div class="warning">
@@ -22789,6 +22829,23 @@ pub struct SessionSandboxGetEnforcementStatusResult {
     pub reason: Option<String>,
     /// Whether the effective managed policy requires an available sandbox backend.
     pub required: bool,
+}
+
+/// Result of attempting to disable sandboxing for the current session.
+///
+/// <div class="warning">
+///
+/// **Experimental.** This type is part of an experimental wire-protocol surface
+/// and may change or be removed in future SDK or CLI releases.
+///
+/// </div>
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SessionSandboxDisableForSessionResult {
+    /// The authoritative sandbox enabled state after the operation.
+    pub enabled: bool,
+    /// Whether this call resolved the pending request and applied the session opt-out.
+    pub success: bool,
 }
 
 /// Result of aborting the current turn

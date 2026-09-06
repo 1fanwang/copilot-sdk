@@ -176,6 +176,8 @@ type AgentGetCurrentResult struct {
 type AgentInfo struct {
 	// Description of the agent's purpose
 	Description string `json:"description"`
+	// Whether model-driven invocation is disabled for this agent.
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Human-readable display name
 	DisplayName string `json:"displayName"`
 	// Stable identifier for selection. For most agents this is the same as `name`; for
@@ -1414,7 +1416,8 @@ type CapiSessionOptions struct {
 	// resume, the runtime restores the last committed preference. On resident resume, a
 	// different value requests a safe switch after resume succeeds and cannot change an
 	// in-flight turn. Successful switches are persisted for later cold resume. When no
-	// preference is supplied or restored, CAPI default routing is used.
+	// preference is supplied or restored, CAPI default routing is used. `fast` is an
+	// integrator-only latency preset, not a first-party GitHub Copilot product preference.
 	AutoTier *AutoTier `json:"autoTier,omitempty"`
 	// Whether to use WebSocket transport for the CAPI Responses API. Enabled by default when
 	// the model advertises `ws:/responses` support; set to `false` to force the HTTP Responses
@@ -3235,15 +3238,15 @@ type FactoryAckResult struct {
 // Experimental: FactoryAgentOptions is part of an experimental API and may change or be
 // removed.
 type FactoryAgentOptions struct {
-	// Optional custom agent name for the subagent. This field is accepted but not yet honored.
+	// Optional built-in or custom agent name whose definition configures the subagent.
 	Agent *string `json:"agent,omitempty"`
-	// Optional context tier for the subagent. This field is accepted but not yet honored.
+	// Optional context tier override for the subagent.
 	ContextTier *ContextTier `json:"contextTier,omitempty"`
 	// Optional label distinguishing otherwise identical memoized agent calls.
 	Label *string `json:"label,omitempty"`
 	// Optional model identifier for the subagent.
 	Model *string `json:"model,omitempty"`
-	// Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+	// Optional reasoning effort override for the subagent.
 	ReasoningEffort *string `json:"reasoningEffort,omitempty"`
 	// Optional JSON Schema for structured agent output.
 	Schema any `json:"schema,omitempty"`
@@ -10625,6 +10628,28 @@ type SandboxConfigUserPolicySeatbelt struct {
 	KeychainAccess *bool `json:"keychainAccess,omitempty"`
 }
 
+// Request to disable sandboxing for the current session while resolving an active
+// sandbox-bypass permission prompt.
+// Experimental: SandboxDisableForSessionRequest is part of an experimental API and may
+// change or be removed.
+type SandboxDisableForSessionRequest struct {
+	// Optional attribution for the permission decision.
+	DecisionContext *PermissionDecisionContext `json:"decisionContext,omitempty"`
+	// Identifier of the exact pending sandbox-bypass permission request that authorized the
+	// session opt-out.
+	RequestID string `json:"requestId"`
+}
+
+// Result of attempting to disable sandboxing for the current session.
+// Experimental: SandboxDisableForSessionResult is part of an experimental API and may
+// change or be removed.
+type SandboxDisableForSessionResult struct {
+	// The authoritative sandbox enabled state after the operation.
+	Enabled bool `json:"enabled"`
+	// Whether this call resolved the pending request and applied the session opt-out.
+	Success bool `json:"success"`
+}
+
 // Managed sandbox enforcement state for a session.
 // Experimental: SandboxEnforcementStatus is part of an experimental API and may change or
 // be removed.
@@ -16505,7 +16530,8 @@ const (
 	AutopilotObjectiveStatusPaused AutopilotObjectiveStatus = "paused"
 )
 
-// Routing preference used when the session model is `auto`.
+// Routing preference used when the session model is `auto`. `fast` is an integrator-only
+// latency preset and is not a first-party GitHub Copilot product preference.
 // Experimental: AutoTier is part of an experimental API and may change or be removed.
 type AutoTier string
 
@@ -16514,6 +16540,8 @@ const (
 	AutoTierBalance AutoTier = "balance"
 	// Optimize for efficiency.
 	AutoTierEfficiency AutoTier = "efficiency"
+	// Integrator-only preset that optimizes for latency.
+	AutoTierFast AutoTier = "fast"
 	// Optimize for intelligence.
 	AutoTierIntelligence AutoTier = "intelligence"
 )
@@ -26031,6 +26059,36 @@ func (a *RemoteAPI) NotifySteerableChanged(ctx context.Context, params *RemoteNo
 
 // Experimental: SandboxAPI contains experimental APIs that may change or be removed.
 type SandboxAPI sessionAPI
+
+// DisableForSession disables sandboxing for the remainder of the current session and
+// approves the referenced pending sandbox-bypass permission request. The request is
+// rejected unless the exact request is still pending and the effective sandbox policy
+// permits bypass.
+//
+// RPC method: session.sandbox.disableForSession.
+//
+// Parameters: Request to disable sandboxing for the current session while resolving an
+// active sandbox-bypass permission prompt.
+//
+// Returns: Result of attempting to disable sandboxing for the current session.
+func (a *SandboxAPI) DisableForSession(ctx context.Context, params *SandboxDisableForSessionRequest) (*SandboxDisableForSessionResult, error) {
+	req := map[string]any{"sessionId": a.sessionID}
+	if params != nil {
+		if params.DecisionContext != nil {
+			req["decisionContext"] = *params.DecisionContext
+		}
+		req["requestId"] = params.RequestID
+	}
+	raw, err := a.client.Request(ctx, "session.sandbox.disableForSession", req)
+	if err != nil {
+		return nil, err
+	}
+	var result SandboxDisableForSessionResult
+	if err := json.Unmarshal(raw, &result); err != nil {
+		return nil, err
+	}
+	return &result, nil
+}
 
 // GetEnforcementStatus returns whether managed policy requires sandbox enforcement and
 // whether an enforcement failure has permanently blocked the session.

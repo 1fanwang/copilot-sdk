@@ -4846,6 +4846,10 @@ export interface AgentInfo {
    */
   userInvocable?: boolean;
   /**
+   * Whether model-driven invocation is disabled for this agent.
+   */
+  disableModelInvocation?: boolean;
+  /**
    * Allowed tool names for this agent. Empty array means none; omitted means inherit defaults.
    */
   tools?: string[];
@@ -7848,12 +7852,12 @@ export interface FactoryAgentOptions {
    */
   model?: string;
   /**
-   * Optional reasoning effort for the subagent. This field is accepted but not yet honored.
+   * Optional reasoning effort override for the subagent.
    */
   reasoningEffort?: string;
   contextTier?: ContextTier;
   /**
-   * Optional custom agent name for the subagent. This field is accepted but not yet honored.
+   * Optional built-in or custom agent name whose definition configures the subagent.
    */
   agent?: string;
 }
@@ -17131,6 +17135,37 @@ export interface SandboxConfigAuth {
   gh?: boolean;
 }
 /**
+ * Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxDisableForSessionRequest".
+ */
+/** @experimental */
+export interface SandboxDisableForSessionRequest {
+  /**
+   * Identifier of the exact pending sandbox-bypass permission request that authorized the session opt-out.
+   */
+  requestId: string;
+  decisionContext?: PermissionDecisionContext;
+}
+/**
+ * Result of attempting to disable sandboxing for the current session.
+ *
+ * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
+ * via the `definition` "SandboxDisableForSessionResult".
+ */
+/** @experimental */
+export interface SandboxDisableForSessionResult {
+  /**
+   * Whether this call resolved the pending request and applied the session opt-out.
+   */
+  success: boolean;
+  /**
+   * The authoritative sandbox enabled state after the operation.
+   */
+  enabled: boolean;
+}
+/**
  * Managed sandbox enforcement state for a session.
  *
  * This interface was referenced by `_RpcSchemaRoot`'s JSON-Schema
@@ -24592,6 +24627,15 @@ export function createSessionRpc(connection: MessageConnection, sessionId: strin
              */
             getEnforcementStatus: async (): Promise<SandboxEnforcementStatus> =>
                 connection.sendRequest("session.sandbox.getEnforcementStatus", { sessionId }),
+            /**
+             * Disables sandboxing for the remainder of the current session and approves the referenced pending sandbox-bypass permission request. The request is rejected unless the exact request is still pending and the effective sandbox policy permits bypass.
+             *
+             * @param params Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
+             *
+             * @returns Result of attempting to disable sandboxing for the current session.
+             */
+            disableForSession: async (params: SandboxDisableForSessionRequest): Promise<SandboxDisableForSessionResult> =>
+                connection.sendRequest("session.sandbox.disableForSession", { sessionId, ...params }),
         },
         /**
          * Aborts the current agent turn.

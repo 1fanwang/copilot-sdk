@@ -142,7 +142,7 @@ export type SessionEvent =
   | ExtensionsAttachmentsPushedEvent
   | McpAppToolCallCompleteEvent;
 /**
- * Routing preference used when the session model is `auto`.
+ * Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference.
  */
 export type AutoTier =
   /** Optimize for efficiency. */
@@ -150,7 +150,9 @@ export type AutoTier =
   /** Balance efficiency and intelligence. */
   | "balance"
   /** Optimize for intelligence. */
-  | "intelligence";
+  | "intelligence"
+  /** Integrator-only preset that optimizes for latency. */
+  | "fast";
 /**
  * Hosting platform type of the repository (github or ado)
  */
@@ -11121,6 +11123,10 @@ export interface CustomAgentsUpdatedAgent {
    * Description of what the agent does
    */
   description: string;
+  /**
+   * Whether model-driven invocation is disabled for this agent.
+   */
+  disableModelInvocation?: boolean;
   /**
    * Human-readable display name
    */

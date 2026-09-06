@@ -6197,6 +6197,9 @@ pub struct SessionSkillsLoadedData {
 pub struct CustomAgentsUpdatedAgent {
     /// Description of what the agent does
     pub description: String,
+    /// Whether model-driven invocation is disabled for this agent.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disable_model_invocation: Option<bool>,
     /// Human-readable display name
     pub display_name: String,
     /// Unique identifier for the agent
@@ -6602,7 +6605,7 @@ pub struct McpAppToolCallCompleteData {
     pub tool_name: String,
 }
 
-/// Routing preference used when the session model is `auto`.
+/// Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference.
 #[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AutoTier {
     /// Optimize for efficiency.
@@ -6614,6 +6617,9 @@ pub enum AutoTier {
     /// Optimize for intelligence.
     #[serde(rename = "intelligence")]
     Intelligence,
+    /// Integrator-only preset that optimizes for latency.
+    #[serde(rename = "fast")]
+    Fast,
     /// Unknown variant for forward compatibility.
     #[default]
     #[serde(other)]

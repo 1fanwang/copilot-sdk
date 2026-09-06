@@ -3268,6 +3268,8 @@ type CompletionReceiptFinalTool struct {
 type CustomAgentsUpdatedAgent struct {
 	// Description of what the agent does
 	Description string `json:"description"`
+	// Whether model-driven invocation is disabled for this agent.
+	DisableModelInvocation *bool `json:"disableModelInvocation,omitempty"`
 	// Human-readable display name
 	DisplayName string `json:"displayName"`
 	// Unique identifier for the agent

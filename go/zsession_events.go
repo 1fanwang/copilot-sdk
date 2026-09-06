@@ -493,6 +493,7 @@ const (
 	AutopilotObjectiveChangedStatusCapReached                          = rpc.AutopilotObjectiveChangedStatusCapReached
 	AutopilotObjectiveChangedStatusCompleted                           = rpc.AutopilotObjectiveChangedStatusCompleted
 	AutopilotObjectiveChangedStatusPaused                              = rpc.AutopilotObjectiveChangedStatusPaused
+	AutoTierFast                                                       = rpc.AutoTierFast
 	AutoTierSwitchFailureReasonPolicyRejected                          = rpc.AutoTierSwitchFailureReasonPolicyRejected
 	AutoTierSwitchFailureReasonRequestFailed                           = rpc.AutoTierSwitchFailureReasonRequestFailed
 	AutoTierSwitchFailureReasonSetupFailed                             = rpc.AutoTierSwitchFailureReasonSetupFailed

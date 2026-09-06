@@ -4323,6 +4323,7 @@ class CustomAgentsUpdatedAgent:
     source: str
     tools: list[str] | None
     user_invocable: bool
+    disable_model_invocation: bool | None = None
     model: str | None = None
     model_policy: AgentModelPolicy | None = None
     models: list[str] | None = None
@@ -4337,6 +4338,7 @@ class CustomAgentsUpdatedAgent:
         source = from_str(obj.get("source"))
         tools = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("tools"))
         user_invocable = from_bool(obj.get("userInvocable"))
+        disable_model_invocation = from_union([from_none, from_bool], obj.get("disableModelInvocation"))
         model = from_union([from_none, from_str], obj.get("model"))
         model_policy = from_union([from_none, lambda x: parse_enum(AgentModelPolicy, x)], obj.get("modelPolicy"))
         models = from_union([from_none, lambda x: from_list(from_str, x)], obj.get("models"))
@@ -4348,6 +4350,7 @@ class CustomAgentsUpdatedAgent:
             source=source,
             tools=tools,
             user_invocable=user_invocable,
+            disable_model_invocation=disable_model_invocation,
             model=model,
             model_policy=model_policy,
             models=models,
@@ -4362,6 +4365,8 @@ class CustomAgentsUpdatedAgent:
         result["source"] = from_str(self.source)
         result["tools"] = from_union([from_none, lambda x: from_list(from_str, x)], self.tools)
         result["userInvocable"] = from_bool(self.user_invocable)
+        if self.disable_model_invocation is not None:
+            result["disableModelInvocation"] = from_union([from_none, from_bool], self.disable_model_invocation)
         if self.model is not None:
             result["model"] = from_union([from_none, from_str], self.model)
         if self.model_policy is not None:
@@ -12142,13 +12147,15 @@ class AutoModeSwitchResponse(Enum):
 
 
 class AutoTier(Enum):
-    "Routing preference used when the session model is `auto`."
+    "Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference."
     # Optimize for efficiency.
     EFFICIENCY = "efficiency"
     # Balance efficiency and intelligence.
     BALANCE = "balance"
     # Optimize for intelligence.
     INTELLIGENCE = "intelligence"
+    # Integrator-only preset that optimizes for latency.
+    FAST = "fast"
 
 
 class AutoTierSwitchFailureReason(Enum):

@@ -10478,6 +10478,11 @@ public sealed partial class CustomAgentsUpdatedAgent
     [JsonPropertyName("description")]
     public required string Description { get; set; }
 
+    /// <summary>Whether model-driven invocation is disabled for this agent.</summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]
+    [JsonPropertyName("disableModelInvocation")]
+    public bool? DisableModelInvocation { get; set; }
+
     /// <summary>Human-readable display name.</summary>
     [JsonPropertyName("displayName")]
     public required string DisplayName { get; set; }
@@ -10689,7 +10694,7 @@ public sealed partial class McpAppToolCallCompleteToolMeta
     public McpAppToolCallCompleteToolMetaUI? Ui { get; set; }
 }
 
-/// <summary>Routing preference used when the session model is `auto`.</summary>
+/// <summary>Routing preference used when the session model is `auto`. `fast` is an integrator-only latency preset and is not a first-party GitHub Copilot product preference.</summary>
 [JsonConverter(typeof(Converter))]
 [DebuggerDisplay("{Value,nq}")]
 public readonly struct AutoTier : IEquatable<AutoTier>
@@ -10716,6 +10721,9 @@ public readonly struct AutoTier : IEquatable<AutoTier>
 
     /// <summary>Optimize for intelligence.</summary>
     public static AutoTier Intelligence { get; } = new("intelligence");
+
+    /// <summary>Integrator-only preset that optimizes for latency.</summary>
+    public static AutoTier Fast { get; } = new("fast");
 
     /// <summary>Returns a value indicating whether two <see cref="AutoTier"/> instances are equivalent.</summary>
     public static bool operator ==(AutoTier left, AutoTier right) => left.Equals(right);

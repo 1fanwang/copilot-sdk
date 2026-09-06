@@ -9627,6 +9627,42 @@ impl<'a> SessionRpcSandbox<'a> {
             .await?;
         Ok(serde_json::from_value(_value)?)
     }
+
+    /// Disables sandboxing for the remainder of the current session and approves the referenced pending sandbox-bypass permission request. The request is rejected unless the exact request is still pending and the effective sandbox policy permits bypass.
+    ///
+    /// Wire method: `session.sandbox.disableForSession`.
+    ///
+    /// # Parameters
+    ///
+    /// * `params` - Request to disable sandboxing for the current session while resolving an active sandbox-bypass permission prompt.
+    ///
+    /// # Returns
+    ///
+    /// Result of attempting to disable sandboxing for the current session.
+    ///
+    /// <div class="warning">
+    ///
+    /// **Experimental.** This API is part of an experimental wire-protocol surface
+    /// and may change or be removed in future SDK or CLI releases. Pin both the
+    /// SDK and CLI versions if your code depends on it.
+    ///
+    /// </div>
+    pub async fn disable_for_session(
+        &self,
+        params: SandboxDisableForSessionRequest,
+    ) -> Result<SandboxDisableForSessionResult, Error> {
+        let mut wire_params = serde_json::to_value(params)?;
+        wire_params["sessionId"] = serde_json::Value::String(self.session.id().to_string());
+        let _value = self
+            .session
+            .client()
+            .call(
+                rpc_methods::SESSION_SANDBOX_DISABLEFORSESSION,
+                Some(wire_params),
+            )
+            .await?;
+        Ok(serde_json::from_value(_value)?)
+    }
 }
 
 /// `session.schedule.*` RPCs.
