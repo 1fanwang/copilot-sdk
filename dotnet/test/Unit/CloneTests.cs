@@ -275,20 +275,31 @@ public class CloneTests
         Assert.True(clone.McpServers!.ContainsKey("SERVER"));
     }
 
-    [Fact]
-    public void MessageOptions_Clone_CopiesAllProperties()
+    [Theory]
+    [InlineData(null)]
+    [InlineData("agent-reviewer")]
+    public void MessageOptions_Clone_CopiesAllProperties(string? source)
     {
         var original = new MessageOptions
         {
             Prompt = "Hello",
             Attachments = [new AttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
-            Mode = "chat",
+            Mode = "immediate",
+            Source = source,
+            AgentMode = AgentMode.Plan,
+            DisplayPrompt = "Display hello",
+            RequestHeaders = new Dictionary<string, string> { ["X-Request-ID"] = "request-1" },
         };
 
         var clone = original.Clone();
 
         Assert.Equal(original.Prompt, clone.Prompt);
         Assert.Equal(original.Mode, clone.Mode);
+        Assert.Equal(original.Source, clone.Source);
+        Assert.Equal(original.AgentMode, clone.AgentMode);
+        Assert.Equal(original.DisplayPrompt, clone.DisplayPrompt);
+        Assert.Equal(original.RequestHeaders, clone.RequestHeaders);
+        Assert.NotSame(original.RequestHeaders, clone.RequestHeaders);
         Assert.Single(clone.Attachments!);
     }
 

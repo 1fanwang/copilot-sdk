@@ -326,6 +326,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
             DisplayPrompt = options.DisplayPrompt,
             Attachments = options.Attachments,
             Mode = options.Mode,
+            Source = options.Source,
             AgentMode = options.AgentMode,
             Traceparent = traceparent,
             Tracestate = tracestate,
@@ -2268,6 +2269,7 @@ public sealed partial class CopilotSession : IAsyncDisposable
         public string? DisplayPrompt { get; init; }
         public IList<Attachment>? Attachments { get; init; }
         public string? Mode { get; init; }
+        public string? Source { get; init; }
         [JsonPropertyName("agentMode")]
         public AgentMode? AgentMode { get; init; }
         public string? Traceparent { get; init; }

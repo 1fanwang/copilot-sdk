@@ -19,7 +19,7 @@ use github_copilot_sdk::handler::{
 };
 use github_copilot_sdk::rpc::{
     CanvasProviderInvokeActionRequest, CanvasProviderOpenRequest, CanvasProviderOpenResult,
-    OpenCanvasInstance,
+    OpenCanvasInstance, SendMode, SendRequest,
 };
 use github_copilot_sdk::session_events::{
     ManagedSettingsResolvedSource, McpOauthRequiredData, ReasoningSummary, SessionLimitsConfig,
@@ -1866,6 +1866,139 @@ async fn send_injects_session_id() {
 }
 
 #[tokio::test]
+async fn send_preserves_source_for_each_delivery_mode() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+
+    for (mode, wire_mode) in [
+        (None, None),
+        (Some(DeliveryMode::Enqueue), Some("enqueue")),
+        (Some(DeliveryMode::Immediate), Some("immediate")),
+    ] {
+        for source in [None, Some("agent-sender-id")] {
+            let mut options = MessageOptions::new("Agent update");
+            assert!(options.source.is_none());
+            if let Some(mode) = mode {
+                options = options.with_mode(mode);
+            }
+            if let Some(source) = source {
+                options = options.with_source(source);
+            }
+            let handle = tokio::spawn({
+                let session = session.clone();
+                async move { session.send(options).await }
+            });
+
+            let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            let mut expected = serde_json::json!({
+                "sessionId": server.session_id,
+                "prompt": "Agent update"
+            });
+            if let Some(mode) = wire_mode {
+                expected["mode"] = serde_json::json!(mode);
+            }
+            if let Some(source) = source {
+                expected["source"] = serde_json::json!(source);
+            }
+            assert_eq!(request["method"], "session.send");
+            assert_eq!(request["params"], expected);
+            server
+                .respond(&request, serde_json::json!({ "messageId": "message-1" }))
+                .await;
+            assert_eq!(
+                timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap(),
+                "message-1"
+            );
+        }
+    }
+}
+
+#[tokio::test]
+async fn send_string_prompt_omits_source() {
+    let (session, mut server) = create_session_pair().await;
+    let handle = tokio::spawn(async move { session.send("Human message").await });
+
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({
+            "sessionId": server.session_id,
+            "prompt": "Human message"
+        })
+    );
+    server
+        .respond(&request, serde_json::json!({ "messageId": "message-1" }))
+        .await;
+    assert_eq!(
+        timeout(TIMEOUT, handle).await.unwrap().unwrap().unwrap(),
+        "message-1"
+    );
+}
+
+#[tokio::test]
+async fn rpc_send_preserves_source_and_attachments_for_each_delivery_mode() {
+    let (session, mut server) = create_session_pair().await;
+    let session = Arc::new(session);
+    let attachments = vec![serde_json::json!({
+        "type": "extension_context",
+        "extensionId": "project:example",
+        "title": "Context",
+        "capturedAt": "2026-09-04T00:00:00Z",
+        "payload": { "content": "Agent context" }
+    })];
+
+    for (mode, wire_mode) in [
+        (None, None),
+        (Some(SendMode::Enqueue), Some("enqueue")),
+        (Some(SendMode::Immediate), Some("immediate")),
+    ] {
+        for source in [None, Some("agent-sender-id")] {
+            let mut params = SendRequest::default();
+            params.prompt = "Agent update".to_string();
+            params.attachments = Some(attachments.clone());
+            params.display_prompt = Some("Update from sender".to_string());
+            params.mode = mode.clone();
+            if let Some(source) = source {
+                params = params.with_source(source);
+            }
+            let handle = tokio::spawn({
+                let session = session.clone();
+                async move { session.rpc().send(params).await }
+            });
+
+            let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+            let mut expected = serde_json::json!({
+                "sessionId": server.session_id,
+                "prompt": "Agent update",
+                "displayPrompt": "Update from sender",
+                "attachments": attachments
+            });
+            if let Some(mode) = wire_mode {
+                expected["mode"] = serde_json::json!(mode);
+            }
+            if let Some(source) = source {
+                expected["source"] = serde_json::json!(source);
+            }
+            assert_eq!(request["method"], "session.send");
+            assert_eq!(request["params"], expected);
+            server
+                .respond(&request, serde_json::json!({ "messageId": "message-1" }))
+                .await;
+            assert_eq!(
+                timeout(TIMEOUT, handle)
+                    .await
+                    .unwrap()
+                    .unwrap()
+                    .unwrap()
+                    .message_id,
+                "message-1"
+            );
+        }
+    }
+}
+
+#[tokio::test]
 async fn send_serializes_request_headers() {
     use std::collections::HashMap;
 
@@ -3461,6 +3594,46 @@ async fn send_and_wait_returns_last_assistant_message_on_idle() {
     let event = result.expect("should have captured assistant.message");
     assert_eq!(event.event_type, "assistant.message");
     assert_eq!(event.data["message"], "Hello back!");
+}
+
+#[tokio::test]
+async fn send_and_wait_preserves_source_and_allows_idle_without_response() {
+    let (session, mut server) = create_session_pair().await;
+    let handle = tokio::spawn(async move {
+        session
+            .send_and_wait(
+                MessageOptions::new("Agent update")
+                    .with_source("agent-sender-id")
+                    .with_wait_timeout(TIMEOUT),
+            )
+            .await
+    });
+
+    let request = timeout(TIMEOUT, server.read_request()).await.unwrap();
+    assert_eq!(request["method"], "session.send");
+    assert_eq!(
+        request["params"],
+        serde_json::json!({
+            "sessionId": server.session_id,
+            "prompt": "Agent update",
+            "source": "agent-sender-id"
+        })
+    );
+    server
+        .respond(&request, serde_json::json!({ "messageId": "message-1" }))
+        .await;
+    server
+        .send_event("session.idle", serde_json::json!({}))
+        .await;
+
+    assert!(
+        timeout(TIMEOUT, handle)
+            .await
+            .unwrap()
+            .unwrap()
+            .unwrap()
+            .is_none()
+    );
 }
 
 #[tokio::test]

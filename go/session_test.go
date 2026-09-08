@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"reflect"
 	"strconv"
 	"strings"
 	"sync"
@@ -93,6 +94,51 @@ func TestDispatchEventReturnsAfterEventProcessingStops(t *testing.T) {
 
 func ptr[T any](value T) *T {
 	return &value
+}
+
+func TestSession_SendPreservesSource(t *testing.T) {
+	for _, mode := range []string{"", "enqueue", "immediate"} {
+		for _, source := range []*string{nil, ptr("agent-sender-id")} {
+			t.Run(fmt.Sprintf("%s/source=%v", mode, source != nil), func(t *testing.T) {
+				options := MessageOptions{
+					Prompt:         "Agent update",
+					Source:         source,
+					Mode:           mode,
+					AgentMode:      AgentModePlan,
+					DisplayPrompt:  "Update from sender",
+					RequestHeaders: map[string]string{"X-Custom-Tag": "value-1"},
+					Attachments: []Attachment{
+						&AttachmentFile{Path: "report.txt", DisplayName: "Report"},
+					},
+				}
+				params := captureModelRequest(t, "session.send", func(session *Session) error {
+					ctx, cancel := context.WithTimeout(t.Context(), 2*time.Second)
+					defer cancel()
+					_, err := session.Send(ctx, options)
+					return err
+				})
+				expected := map[string]any{
+					"sessionId":      "session-1",
+					"prompt":         "Agent update",
+					"agentMode":      "plan",
+					"displayPrompt":  "Update from sender",
+					"requestHeaders": map[string]any{"X-Custom-Tag": "value-1"},
+					"attachments": []any{
+						map[string]any{"type": "file", "path": "report.txt", "displayName": "Report"},
+					},
+				}
+				if mode != "" {
+					expected["mode"] = mode
+				}
+				if source != nil {
+					expected["source"] = *source
+				}
+				if !reflect.DeepEqual(params, expected) {
+					t.Fatalf("got params %#v, want %#v", params, expected)
+				}
+			})
+		}
+	}
 }
 
 func TestSession_SetModelForwardsContextTier(t *testing.T) {
@@ -513,6 +559,15 @@ func readTestJSONRPCFrame(r io.Reader) ([]byte, error) {
 }
 
 func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
+	for _, source := range []*string{nil, ptr("agent-sender-id")} {
+		t.Run(fmt.Sprintf("source=%v", source != nil), func(t *testing.T) {
+			testSessionSendAndWaitSkipsAutopilotContinuationIdle(t, source)
+		})
+	}
+}
+
+func testSessionSendAndWaitSkipsAutopilotContinuationIdle(t *testing.T, source *string) {
+	t.Helper()
 	stdinR, stdinW := io.Pipe()
 	stdoutR, stdoutW := io.Pipe()
 	defer stdinR.Close()
@@ -536,6 +591,7 @@ func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
 		var request struct {
 			ID     json.RawMessage `json:"id"`
 			Method string          `json:"method"`
+			Params map[string]any  `json:"params"`
 		}
 		if err := json.Unmarshal(frame, &request); err != nil {
 			errCh <- err
@@ -543,6 +599,14 @@ func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
 		}
 		if request.Method != "session.send" {
 			errCh <- fmt.Errorf("expected session.send, got %s", request.Method)
+			return
+		}
+		if source != nil && request.Params["source"] != *source {
+			errCh <- fmt.Errorf("expected agent source, got %v", request.Params["source"])
+			return
+		}
+		if _, present := request.Params["source"]; source == nil && present {
+			errCh <- fmt.Errorf("expected omitted source, got %v", request.Params["source"])
 			return
 		}
 
@@ -576,7 +640,9 @@ func TestSession_SendAndWaitSkipsAutopilotContinuationIdle(t *testing.T) {
 
 	resultCh := make(chan *SessionEvent, 1)
 	go func() {
-		result, err := session.SendAndWait(t.Context(), MessageOptions{Prompt: "keep going"})
+		result, err := session.SendAndWait(t.Context(), MessageOptions{
+			Prompt: "keep going", Source: source,
+		})
 		if err != nil {
 			errCh <- err
 			return

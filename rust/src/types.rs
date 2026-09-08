@@ -5380,6 +5380,16 @@ pub enum AgentMode {
 pub struct MessageOptions {
     /// The user prompt to send.
     pub prompt: String,
+    /// Optional provenance tag identifying the message origin.
+    ///
+    /// The runtime accepts `user`, `system`, `command-<command-id>`,
+    /// `schedule-<numeric-id>`, and `agent-<agent-id>`. The SDK forwards
+    /// the value unchanged and omits it when `None` (the default).
+    ///
+    /// Provenance does not specify whether a reply is required: agent messages
+    /// may complete without a visible reply. It does not control billing.
+    /// Remote backends may not preserve this tag across delivery.
+    pub source: Option<String>,
     /// Optional message delivery mode for this turn.
     ///
     /// Controls whether the prompt is queued behind in-flight work
@@ -5419,6 +5429,7 @@ impl MessageOptions {
     pub fn new(prompt: impl Into<String>) -> Self {
         Self {
             prompt: prompt.into(),
+            source: None,
             mode: None,
             agent_mode: None,
             attachments: None,
@@ -5428,6 +5439,12 @@ impl MessageOptions {
             tracestate: None,
             display_prompt: None,
         }
+    }
+
+    /// Set the message provenance tag. See [`Self::source`] for accepted forms.
+    pub fn with_source(mut self, source: impl Into<String>) -> Self {
+        self.source = Some(source.into());
+        self
     }
 
     /// Set the message delivery mode for this turn.

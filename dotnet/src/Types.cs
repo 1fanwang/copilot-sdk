@@ -4028,6 +4028,7 @@ public sealed class MessageOptions
 
         Attachments = other.Attachments is not null ? [.. other.Attachments] : null;
         Mode = other.Mode;
+        Source = other.Source;
         AgentMode = other.AgentMode;
         Prompt = other.Prompt;
         DisplayPrompt = other.DisplayPrompt;
@@ -4049,6 +4050,16 @@ public sealed class MessageOptions
     /// <c>"immediate"</c> interjects during an in-progress turn.
     /// </summary>
     public string? Mode { get; set; }
+    /// <summary>
+    /// Optional provenance tag copied to the resulting <c>user.message</c> event.
+    /// Supported forms are <c>user</c>, <c>system</c>, <c>command-&lt;id&gt;</c>,
+    /// <c>schedule-&lt;numeric-id&gt;</c>, and <c>agent-&lt;id&gt;</c>.
+    /// The runtime validates the value; the SDK forwards it unchanged and omits it when null.
+    /// This identifies the message's origin, not a response requirement; the agent may
+    /// complete silently. It does not change delivery mode or billing.
+    /// Remote backends may not retain this metadata end-to-end.
+    /// </summary>
+    public string? Source { get; set; }
     /// <summary>
     /// The UI mode the agent was in when this message was sent (for example "plan", "autopilot").
     /// Defaults to the session's current mode when unset.

@@ -7,7 +7,7 @@ use github_copilot_sdk::rpc::{
     Extension, ExtensionList, ExtensionSource, ExtensionStatus, ExtensionsDisableRequest,
     ExtensionsEnableRequest, FleetStartRequest, FleetStartResult, ModelSwitchAutoTierRequest,
     ModelSwitchAutoTierResult, ModelSwitchAutoTierStatus, QueuePendingItems, QueuePendingItemsKind,
-    SandboxConfig, SendAgentMode, TasksStartAgentRequest,
+    SandboxConfig, SendAgentMode, SendMode, SendRequest, TasksStartAgentRequest,
 };
 use github_copilot_sdk::session_events::{
     PermissionRequest, PermissionRequestedData, SessionEventData, TypedSessionEvent,
@@ -113,6 +113,46 @@ fn fleet_start_request_and_result_fields_are_accessible() {
     let result = FleetStartResult { started: true };
     assert_eq!(request.prompt.as_deref(), Some("Use the custom tool"));
     assert!(result.started);
+}
+
+#[test]
+fn send_request_source_builder_changes_only_provenance() {
+    let mut request = SendRequest::default();
+    request.prompt = "Agent update".to_string();
+    request.attachments = Some(vec![serde_json::json!({
+        "type": "file",
+        "path": "report.txt",
+        "displayName": "Report"
+    })]);
+    request.display_prompt = Some("Update from sender".to_string());
+    request.mode = Some(SendMode::Immediate);
+    request.agent_mode = Some(SendAgentMode::Plan);
+    request.billable = Some(false);
+    request.prepend = Some(true);
+    request.required_tool = Some("read_file".to_string());
+    request.request_headers = Some(
+        [("X-Custom-Tag".to_string(), "value-1".to_string())]
+            .into_iter()
+            .collect(),
+    );
+    request.traceparent = Some("00-trace-parent-01".to_string());
+    request.tracestate = Some("vendor=value".to_string());
+    request.wait = Some(true);
+
+    let mut expected = serde_json::to_value(&request).unwrap();
+    assert!(expected.get("source").is_none());
+    expected["source"] = serde_json::json!("agent-sender-id");
+
+    let sourced = request.with_source("agent-sender-id".to_string());
+    assert_eq!(serde_json::to_value(sourced).unwrap(), expected);
+}
+
+#[test]
+fn send_request_default_omits_source_and_billing() {
+    assert_eq!(
+        serde_json::to_value(SendRequest::default()).unwrap(),
+        serde_json::json!({ "prompt": "" })
+    );
 }
 
 #[test]

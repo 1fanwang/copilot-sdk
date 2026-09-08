@@ -48,6 +48,7 @@ public class MessageOptions {
     private AgentMode agentMode;
     private Map<String, String> requestHeaders;
     private String displayPrompt;
+    private String source;
 
     /**
      * Gets the message prompt.
@@ -202,6 +203,37 @@ public class MessageOptions {
     }
 
     /**
+     * Gets the optional message provenance tag.
+     *
+     * @return the source, or {@code null} if not set
+     */
+    public String getSource() {
+        return source;
+    }
+
+    /**
+     * Sets the optional provenance tag for the resulting {@code user.message}
+     * event.
+     * <p>
+     * Accepted forms are {@code user}, {@code system}, {@code command-<id>},
+     * {@code schedule-<numeric-id>}, and {@code agent-<id>}. The SDK forwards
+     * strings unchanged. The default is {@code null}, which omits the field from
+     * the request.
+     * <p>
+     * Source describes where a message originated, not whether it requires a
+     * response; the agent may complete silently. It does not change billing or
+     * delivery mode. Remote backends may not retain it end-to-end.
+     *
+     * @param source
+     *            the provenance tag, or {@code null} to omit it
+     * @return this options instance for method chaining
+     */
+    public MessageOptions setSource(String source) {
+        this.source = source;
+        return this;
+    }
+
+    /**
      * Creates a shallow clone of this {@code MessageOptions} instance.
      * <p>
      * Mutable collection properties are copied into new collection instances so
@@ -220,6 +252,7 @@ public class MessageOptions {
         copy.agentMode = this.agentMode;
         copy.requestHeaders = this.requestHeaders != null ? new HashMap<>(this.requestHeaders) : null;
         copy.displayPrompt = this.displayPrompt;
+        copy.source = this.source;
         return copy;
     }
 

@@ -2435,6 +2435,12 @@ type ToolBinaryResult struct {
 type MessageOptions struct {
 	// Prompt is the message to send
 	Prompt string
+	// Source is optional message provenance, omitted when nil. The runtime accepts
+	// "user", "system", "command-<id>", "schedule-<numeric-id>", and "agent-<id>".
+	// This is not a response requirement: agent messages may complete without a
+	// visible reply. It does not control billing, and remote backends may not
+	// preserve it end to end.
+	Source *string
 	// Attachments are file or directory attachments
 	Attachments []Attachment
 	// Mode is the message delivery mode (default: "enqueue")
@@ -2913,6 +2919,7 @@ type sessionAbortRequest struct {
 type sessionSendRequest struct {
 	SessionID      string            `json:"sessionId"`
 	Prompt         string            `json:"prompt"`
+	Source         *string           `json:"source,omitempty"`
 	DisplayPrompt  string            `json:"displayPrompt,omitempty"`
 	Attachments    []Attachment      `json:"attachments,omitempty"`
 	Mode           string            `json:"mode,omitempty"`

@@ -33,6 +33,28 @@ sequenceDiagram
     LLM->>S: Turn completes
 ```
 
+## Message provenance
+
+Set the optional `source` field when forwarding a message from another agent. For example, `agent-sender-id` identifies an agent-originated message. Leave it unset for existing source-less sends. Both send and send-and-wait APIs forward the field, including with `"enqueue"` and `"immediate"` delivery.
+
+| SDK | Source option |
+|-----|---------------|
+| Node.js / TypeScript | `MessageOptions.source` |
+| Python | `source=` keyword on `send` and `send_and_wait` |
+| Go | `MessageOptions.Source`, a `*string` |
+| .NET | `MessageOptions.Source` |
+| Java | `MessageOptions.setSource(...)` |
+| Rust | `MessageOptions::with_source(...)` |
+
+The runtime accepts `user`, `system`, `command-<id>`, `schedule-<numeric-id>`, and `agent-<id>`. The SDK forwards the supplied value unchanged and omits it when unset. Rust callers using the typed RPC API can use `rpc::SendRequest::with_source(...)` without accessing generated internal fields.
+
+Source identifies who originated the message, while `"immediate"` mode requests delivery urgency. Neither guarantees a visible reply. Source does not change billing defaults. The runtime uses provenance for scheduling and to distinguish agent input from human authorization evidence, so derive it from trusted sender metadata rather than message text.
+
+A successful high-level `send` acknowledgement returns a message ID and confirms acceptance, not that the recipient has consumed the message. Do not automatically resend an accepted message merely because no reply appears.
+
+> [!WARNING]
+> Remote backends do not necessarily preserve source end to end. Mission Control accepts it and includes it in the local echo, but drops it from remote HTTP delivery. A local source event does not prove that the remote worker received the same provenance.
+
 ## Steering (immediate mode)
 
 Steering sends a message that is injected directly into the agent's current turn. The agent sees the message in real time and adjusts its response accordingly—useful for course-correcting without aborting the turn.

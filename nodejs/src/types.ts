@@ -3324,6 +3324,14 @@ export interface MessageOptions {
     prompt: string;
 
     /**
+     * Optional message provenance, omitted when unset. The runtime accepts `user`, `system`,
+     * `command-<id>`, `schedule-<numeric-id>`, and `agent-<id>`.
+     * This is not a response requirement: agent messages may complete without a visible reply.
+     * It does not control billing, and remote backends may not preserve it end to end.
+     */
+    source?: string;
+
+    /**
      * File, directory, selection, or blob attachments
      */
     attachments?: Array<

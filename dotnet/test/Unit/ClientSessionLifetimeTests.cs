@@ -1477,6 +1477,142 @@ public sealed class ClientSessionLifetimeTests
         await Assert.ThrowsAsync<ObjectDisposedException>(() => session.Rpc.Model.GetCurrentAsync());
     }
 
+    [Theory]
+    [InlineData(null, "enqueue", false)]
+    [InlineData(null, "immediate", true)]
+    [InlineData("user", "enqueue", false)]
+    [InlineData("system", "immediate", true)]
+    [InlineData("command-review", "immediate", false)]
+    [InlineData("schedule-123", "enqueue", true)]
+    [InlineData("agent-reviewer", "enqueue", false)]
+    [InlineData("agent-reviewer", "immediate", true)]
+    [InlineData("", "enqueue", false)]
+    [InlineData("future-source", "immediate", true)]
+    public async Task Send_Source_Is_Serialized_Without_Changing_Other_Fields(
+        string? source, string mode, bool waitForReply)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+        using var activity = new Activity("send-source").SetIdFormat(ActivityIdFormat.W3C).Start();
+        activity.TraceStateString = "test=value";
+        var options = new MessageOptions
+        {
+            Prompt = "real prompt",
+            DisplayPrompt = "display prompt",
+            Source = source,
+            Mode = mode,
+            AgentMode = AgentMode.Plan,
+            Attachments = [new AttachmentFile { Path = "/test.txt", DisplayName = "test.txt" }],
+            RequestHeaders = new Dictionary<string, string> { ["X-Request-ID"] = "request-1" }
+        }.Clone();
+
+        if (waitForReply)
+        {
+            var replyTask = session.SendAndWaitAsync(options, TimeSpan.FromSeconds(5));
+            await WaitForRequestAsync(server, "session.send");
+            await server.SendEventAsync(session.SessionId, new AssistantMessageEvent
+            {
+                Id = Guid.NewGuid(),
+                Data = new AssistantMessageData { Content = "reply", MessageId = "assistant-1" }
+            });
+            await server.SendEventAsync(session.SessionId, new SessionIdleEvent
+            {
+                Id = Guid.NewGuid(),
+                Data = new SessionIdleData { Mode = SessionMode.Interactive }
+            });
+            var reply = await replyTask;
+            Assert.NotNull(reply);
+            Assert.Equal("reply", reply.Data.Content);
+        }
+        else
+        {
+            Assert.Equal("message-1", await session.SendAsync(options));
+        }
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.send").Params;
+        if (source is null)
+        {
+            Assert.False(request.TryGetProperty("source", out _));
+        }
+        else
+        {
+            Assert.Equal(source, request.GetProperty("source").GetString());
+        }
+        Assert.Equal(session.SessionId, request.GetProperty("sessionId").GetString());
+        Assert.Equal("real prompt", request.GetProperty("prompt").GetString());
+        Assert.Equal("display prompt", request.GetProperty("displayPrompt").GetString());
+        Assert.Equal(mode, request.GetProperty("mode").GetString());
+        Assert.Equal("plan", request.GetProperty("agentMode").GetString());
+        var attachment = Assert.Single(request.GetProperty("attachments").EnumerateArray());
+        Assert.Equal("file", attachment.GetProperty("type").GetString());
+        Assert.Equal("/test.txt", attachment.GetProperty("path").GetString());
+        Assert.Equal("test.txt", attachment.GetProperty("displayName").GetString());
+        Assert.Equal("request-1", request.GetProperty("requestHeaders").GetProperty("X-Request-ID").GetString());
+        Assert.Equal(activity.Id, request.GetProperty("traceparent").GetString());
+        Assert.Equal("test=value", request.GetProperty("tracestate").GetString());
+        Assert.False(request.TryGetProperty("billable", out _));
+        Assert.False(request.TryGetProperty("wait", out _));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task Send_String_Overloads_Omit_Source_And_Keep_Defaults(bool waitForReply)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+
+        if (waitForReply)
+        {
+            var replyTask = session.SendAndWaitAsync("prompt", TimeSpan.FromSeconds(5));
+            await WaitForRequestAsync(server, "session.send");
+            await server.SendEventAsync(session.SessionId, new SessionIdleEvent
+            {
+                Id = Guid.NewGuid(),
+                Data = new SessionIdleData { Mode = SessionMode.Interactive }
+            });
+            Assert.Null(await replyTask);
+        }
+        else
+        {
+            Assert.Equal("message-1", await session.SendAsync("prompt"));
+        }
+
+        var request = Assert.Single(server.Requests, request => request.Method == "session.send").Params;
+        Assert.Equal("prompt", request.GetProperty("prompt").GetString());
+        Assert.False(request.TryGetProperty("source", out _));
+        Assert.False(request.TryGetProperty("mode", out _));
+        Assert.False(request.TryGetProperty("agentMode", out _));
+        Assert.False(request.TryGetProperty("billable", out _));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("agent-reviewer")]
+    public async Task Rpc_Send_Source_Preserves_Explicit_Billing(string? source)
+    {
+        await using var server = await FakeCopilotServer.StartAsync();
+        await using var client = new CopilotClient(new CopilotClientOptions { Connection = RuntimeConnection.ForUri(server.Url) });
+        await using var session = await client.CreateSessionAsync(new SessionConfig());
+
+        var result = await session.Rpc.SendAsync("prompt", source: source, mode: SendMode.Immediate, billable: false);
+
+        Assert.Equal("message-1", result.MessageId);
+        var request = Assert.Single(server.Requests, request => request.Method == "session.send").Params;
+        Assert.Equal("immediate", request.GetProperty("mode").GetString());
+        Assert.False(request.GetProperty("billable").GetBoolean());
+        if (source is null)
+        {
+            Assert.False(request.TryGetProperty("source", out _));
+        }
+        else
+        {
+            Assert.Equal(source, request.GetProperty("source").GetString());
+        }
+    }
+
     [Fact]
     public async Task SendAndWaitAsync_Skips_Autopilot_Continuation_Idle()
     {
@@ -2029,6 +2165,22 @@ public sealed class ClientSessionLifetimeTests
         public void CloseConnection()
         {
             _stream?.Dispose();
+        }
+
+        public async Task SendEventAsync(string sessionId, SessionEvent evt)
+        {
+            var stream = _stream ?? throw new InvalidOperationException("Client is not connected.");
+            using var document = JsonDocument.Parse(evt.ToJson());
+            await WriteMessageAsync(stream, new Dictionary<string, object?>
+            {
+                ["jsonrpc"] = "2.0",
+                ["method"] = "session.event",
+                ["params"] = new Dictionary<string, object?>
+                {
+                    ["sessionId"] = sessionId,
+                    ["event"] = document.RootElement
+                }
+            }, _cts.Token);
         }
 
         public async Task<JsonElement> SendRequestAsync(string method, Dictionary<string, object?> parameters)

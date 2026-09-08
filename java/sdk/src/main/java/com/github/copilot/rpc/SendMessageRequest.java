@@ -46,6 +46,9 @@ public final class SendMessageRequest {
     @JsonProperty("displayPrompt")
     private String displayPrompt;
 
+    @JsonProperty("source")
+    private String source;
+
     /** Gets the session ID. @return the session ID */
     public String getSessionId() {
         return sessionId;
@@ -119,5 +122,17 @@ public final class SendMessageRequest {
      */
     public void setDisplayPrompt(String displayPrompt) {
         this.displayPrompt = displayPrompt;
+    }
+
+    /** Gets the provenance tag. @return the source, or {@code null} if not set */
+    public String getSource() {
+        return source;
+    }
+
+    /**
+     * Sets the provenance tag. @param source the source, or {@code null} to omit it
+     */
+    public void setSource(String source) {
+        this.source = source;
     }
 }

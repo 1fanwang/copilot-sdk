@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from copilot.session import CopilotSession
+from copilot.session import Attachment, CopilotSession
 from copilot.session_events import (
     AssistantMessageData,
     ExternalToolCompletedData,
@@ -26,6 +26,60 @@ def _event(data, event_type: SessionEventType) -> SessionEvent:
         id=uuid4(),
         timestamp=datetime.now(UTC),
         type=event_type,
+    )
+
+
+@pytest.mark.parametrize("wait", [False, True])
+@pytest.mark.parametrize("mode", [None, "enqueue", "immediate"])
+@pytest.mark.parametrize("source", [None, "agent-sender-id"])
+@pytest.mark.asyncio
+async def test_send_preserves_source_and_other_options(wait, mode, source):
+    client = Mock()
+    session = CopilotSession("session-1", client)
+
+    async def respond(_method, _params):
+        session._dispatch_event(_event(SessionIdleData(), SessionEventType.SESSION_IDLE))
+        return {"messageId": "message-1"}
+
+    client.request = AsyncMock(side_effect=respond)
+    attachments: list[Attachment] = [
+        {"type": "file", "path": "report.txt", "displayName": "Report"}
+    ]
+    send = session.send_and_wait if wait else session.send
+    result = await send(
+        "Agent update",
+        source=source,
+        mode=mode,
+        agent_mode="plan",
+        attachments=attachments,
+        display_prompt="Update from sender",
+        request_headers={"X-Custom-Tag": "value-1"},
+    )
+
+    expected = {
+        "sessionId": "session-1",
+        "prompt": "Agent update",
+        "agentMode": "plan",
+        "attachments": attachments,
+        "displayPrompt": "Update from sender",
+        "requestHeaders": {"X-Custom-Tag": "value-1"},
+    }
+    if mode is not None:
+        expected["mode"] = mode
+    if source is not None:
+        expected["source"] = source
+    client.request.assert_awaited_once_with("session.send", expected)
+    assert result == (None if wait else "message-1")
+
+
+@pytest.mark.asyncio
+async def test_send_default_omits_source():
+    client = Mock()
+    client.request = AsyncMock(return_value={"messageId": "message-1"})
+    session = CopilotSession("session-1", client)
+    assert await session.send("Human message") == "message-1"
+    client.request.assert_awaited_once_with(
+        "session.send", {"sessionId": "session-1", "prompt": "Human message"}
     )
 
 

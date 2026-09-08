@@ -1710,6 +1710,7 @@ class CopilotSession:
         self,
         prompt: str,
         *,
+        source: str | None = None,
         attachments: list[Attachment] | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
@@ -1725,6 +1726,11 @@ class CopilotSession:
 
         Args:
             prompt: The message text to send.
+            source: Optional message provenance, omitted when None. The runtime accepts
+                ``user``, ``system``, ``command-<id>``, ``schedule-<numeric-id>``, and
+                ``agent-<id>``. This is not a response requirement: agent messages may
+                complete without a visible reply. It does not control billing, and
+                remote backends may not preserve it end to end.
             attachments: Optional file, directory, or selection attachments.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
@@ -1750,6 +1756,8 @@ class CopilotSession:
             "sessionId": self.session_id,
             "prompt": prompt,
         }
+        if source is not None:
+            params["source"] = source
         if attachments is not None:
             params["attachments"] = attachments
         if mode is not None:
@@ -1779,6 +1787,7 @@ class CopilotSession:
         self,
         prompt: str,
         *,
+        source: str | None = None,
         attachments: list[Attachment] | None = None,
         mode: Literal["enqueue", "immediate"] | None = None,
         agent_mode: Literal["interactive", "plan", "autopilot", "shell"] | None = None,
@@ -1797,6 +1806,9 @@ class CopilotSession:
 
         Args:
             prompt: The message text to send.
+            source: Optional message provenance, forwarded unchanged to :meth:`send`.
+                It does not require a visible reply or control billing. Remote
+                backends may not preserve it end to end.
             attachments: Optional file, directory, or selection attachments.
             mode: Message delivery mode (``"enqueue"`` or ``"immediate"``).
             agent_mode: The UI mode the agent was in when this message was sent
@@ -1860,6 +1872,7 @@ class CopilotSession:
         try:
             await self.send(
                 prompt,
+                source=source,
                 attachments=attachments,
                 mode=mode,
                 agent_mode=agent_mode,
